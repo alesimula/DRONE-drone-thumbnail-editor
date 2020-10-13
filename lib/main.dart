@@ -85,7 +85,7 @@ extension on ImgFormat {
   FileChooser.FileTypeFilterGroup get fileTypeGroup {
     return (this != null) ? fileTypeGroups[this] : FileChooser.FileTypeFilterGroup(label: "Unknown", fileExtensions: ["*"]);
   }
-  bool checkSignature(Uint8List fileData) {
+  bool checkHeaderSignature(Uint8List fileData) {
     var signature = this.signature;
     if (this == null || fileData.length < signature.length) return false;
     for(var i=0; i< signature.length; i++) if (fileData[i] != signature[i]) return false;
@@ -96,7 +96,7 @@ extension _Int8ListImageFileData on Uint8List {
   ImgFormat get imageFormat {
     if (this == null) return null;
     for (var format in ImgFormat.values) {
-      if (format.checkSignature(this)) return format;
+      if (format.checkHeaderSignature(this)) return format;
     }
     return null;
   }
