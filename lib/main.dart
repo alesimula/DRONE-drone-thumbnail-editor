@@ -217,7 +217,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _exportThumbnailImpl() async {
     var fileTypeGroup = thumbnailBytes.imageFormat.fileTypeGroup;
-    var fileNameWithExtension = "$fileName${(fileTypeGroup.fileExtensions.isEmpty || fileTypeGroup.fileExtensions.first != "*") ? "."+fileTypeGroup.fileExtensions.first : ""}";
+    var fileNameWithExtension = "$fileName${(fileTypeGroup.fileExtensions.isNotEmpty && fileTypeGroup.fileExtensions.first != "*") ? "."+fileTypeGroup.fileExtensions.first : ""}";
     var saveResult = (await FileChooser.showSavePanel(suggestedFileName: fileNameWithExtension, allowedFileTypes: [fileTypeGroup]));
     if (!saveResult.canceled) {
       var file = File(saveResult.paths.first);
