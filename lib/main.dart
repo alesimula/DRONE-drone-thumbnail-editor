@@ -158,6 +158,7 @@ class _MyHomePageState extends State<MyHomePage> {
     var droneFile = File((await FileChooser.showOpenPanel(initialDirectory: gameDir, allowedFileTypes: [FileChooser.FileTypeFilterGroup(label: "DRONE file", fileExtensions: ["drone"])], allowsMultipleSelection: false)).paths.first);
     fileName = Path.basenameWithoutExtension(droneFile.path);
     fileNameFull = Path.basename(droneFile.path);
+    WindowSize.setWindowTitle(fileName);
     var bytes = droneFile.readAsBytesSync();
     try {
       var jpegStart = 8;
