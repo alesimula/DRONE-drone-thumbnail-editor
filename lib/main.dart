@@ -61,10 +61,10 @@ FileChooser.FileTypeFilterGroup combineImageFileTypeGroup(String label, List<Img
 var supportedImageFileTypeGroup = combineImageFileTypeGroup("Supported image formats", [ImgFormat.PNG, ImgFormat.JPEG]);
 
 
-extension _Int8List on Int8List {
+extension on Int8List {
   Uint8List get unsigned {return this.buffer.asUint8List();} 
 }
-extension _ImgFormat on ImgFormat {
+extension on ImgFormat {
   static final Map<ImgFormat, Uint8List> signatures = HashMap.fromEntries([
     MapEntry(ImgFormat.JPEG, Int8List.fromList([0xFF, 0xD8, 0xFF]).unsigned),
     MapEntry(ImgFormat.PNG, Int8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).unsigned),
