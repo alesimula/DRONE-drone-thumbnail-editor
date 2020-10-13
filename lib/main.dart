@@ -293,7 +293,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           ListTile(
-                            title: Text('New thumbnail (jpg)'),
+                            title: Text('New thumbnail'),
                             subtitle: Text('$imageName$imageWarning'),
                           ),
                         ],
