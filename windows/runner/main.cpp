@@ -8,7 +8,7 @@
 #include "run_loop.h"
 #include "utils.h"
 
-void GetScaledDesktopResolution(int& horizontal, int& vertical) {
+void GetUnscaledDesktopResolution(int& horizontal, int& vertical) {
   RECT desktop;
   const HWND hDesktop = GetDesktopWindow();
 
@@ -40,7 +40,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   RunLoop run_loop;
   
   int resWidth, resHeight;
-  GetScaledDesktopResolution(resWidth, resHeight);
+  GetUnscaledDesktopResolution(resWidth, resHeight);
   int originX = (int)((std::max)(resWidth-width, 0)/2.5), originY = (int)((std::max)(resHeight-height, 0)/2.7);
 
   flutter::DartProject project(L"data");
