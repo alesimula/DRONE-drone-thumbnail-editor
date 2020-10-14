@@ -46,7 +46,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   flutter::DartProject project(L"data");
   FlutterWindow window(&run_loop, project);
   Win32Window::Point origin(originX, originY);
-  Win32Window::Size size(600, 680);
+  Win32Window::Size size(width, height);
   if (!window.CreateAndShow(L"drone_thumbnail_editor", origin, size)) {
     return EXIT_FAILURE;
   }
