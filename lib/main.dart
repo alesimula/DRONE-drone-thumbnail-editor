@@ -263,7 +263,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     DIRECTORY_C_64.existsSync() ? DIRECTORY_C_64.path :
                     DIRECTORY_D.existsSync() ? DIRECTORY_D.path :
                     DIRECTORY_D_64.existsSync() ? DIRECTORY_D_64.path : null;
-    var saveResult = await FileChooser.showSavePanel(suggestedFileName: fileNameFull, initialDirectory: gameDir, allowedFileTypes: [FileChooser.FileTypeFilterGroup(label: "DRONE file", fileExtensions: ["drone"])]);
+    var saveResult = await FileChooser.showSavePanel(suggestedFileName: fileNameFull, initialDirectory: gameDir, allowedFileTypes: [gameFileType.fileTypeGroup]);
     if (!saveResult.canceled) {
       var droneFile = File(saveResult.paths.first);
       var newSizeBytes = Int32List.fromList([newThumbnailBytes.length]).buffer.asInt8List();
