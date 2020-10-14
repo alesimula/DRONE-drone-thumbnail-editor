@@ -30,13 +30,8 @@ class MyApp extends StatelessWidget {
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key key, this.title}) : super(key: key) {
     WindowSize.setWindowTitle("Drone Thumbnail Editor");
-    resize();
   }
-
-  void resize() async {
-    var size = (await WindowSize.getWindowInfo()).frame;
-    WindowSize.setWindowFrame(Rect.fromLTRB(size.left, size.top, size.left+750, size.top+850));
-  }
+  
   final String title;
 
   @override
