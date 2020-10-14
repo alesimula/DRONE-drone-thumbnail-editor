@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:file_chooser/file_chooser.dart' as FileChooser;
 import 'package:menubar/menubar.dart' as Menubar;
 import 'package:window_size/window_size.dart' as WindowSize;
+import 'package:lzma/lzma.dart';
 
 void main() {
   runApp(MyApp());
@@ -47,6 +48,67 @@ var DIRECTORY_D = Directory("D:\\Program Files (x86)\\Steam\\steamapps\\common\\
 var DIRECTORY_D_64 = Directory("D:\\Program Files\\Steam\\steamapps\\common\\D.R.O.N.E. The Game\\branches\\stable\\D.R.O.N.E. The Game_Data\\Drones");
 
 
+class EmbeddedThumbnail {
+  //Thumbnail index should be way before, but just to be sure...
+  static const int MAX_SCAN_SIZE = 10000;
+  final int index, size, endIndex;
+  final ImgFormat format;
+
+  EmbeddedThumbnail._(this.format, this.index, this.size) : endIndex = index + size;
+
+  static EmbeddedThumbnail fromLevel(Uint8List data) {
+    int startIndex;
+    if (data.length <= 12 || (startIndex = data[4].toInt() + 12) >= data.length || startIndex < 12) return null;
+    EmbeddedThumbnail._(null, 0, 0);
+    for (int index = startIndex; index < min(MAX_SCAN_SIZE, data.length); index++) {
+      var format = data.imageFormatAtIndex(index);
+      int size = (format != null) ? Int8List.fromList([data[index-1], data[index-2], data[index-3], data[index-4]]).buffer.asByteData().getInt32(0) : -1;
+      if (size >= 0 && size <= data.length - index) return EmbeddedThumbnail._(format, index, size);
+    }
+    return null;
+  }
+  static EmbeddedThumbnail fromDrone(Uint8List data) {
+    if (data.length < 8) return null;
+    var format = data.imageFormatAtIndex(8);
+    var size = Int8List.fromList([data[7], data[6], data[5], data[4]]).buffer.asByteData().getInt32(0);
+    return (format != null && size <= data.length - 8) ? EmbeddedThumbnail._(format, 8, size): null;
+  }
+}
+
+enum GameFileType {
+  DRONE, LEVEL
+}
+extension on GameFileType {
+  static final Map<GameFileType, String> fileTypeLabels = HashMap.fromEntries([
+    MapEntry(GameFileType.DRONE, "DRONE drone"),
+    MapEntry(GameFileType.LEVEL, "DRONE level")
+  ]);
+  FileChooser.FileTypeFilterGroup get fileTypeGroup {
+    return FileChooser.FileTypeFilterGroup(label: fileTypeLabels[this] ?? "Unknown", fileExtensions: [this?.toString()?.split('.')?.elementAt(1)?.toLowerCase() ?? "*"]);
+  }
+
+  EmbeddedThumbnail Function(Uint8List data) get getEmbeddedThumbnail {switch(this) {
+    case GameFileType.DRONE: return EmbeddedThumbnail.fromDrone;
+    case GameFileType.LEVEL: return EmbeddedThumbnail.fromLevel;
+    default: return (data) => null;
+  }}
+
+  Uint8List decode(Uint8List data) {try{switch(this) {
+    case GameFileType.LEVEL: return Uint8List.fromList(lzma.decode(data));
+    default: return data;
+  }}catch(e) {return Uint8List.fromList([]);}}
+
+  Uint8List encode(Uint8List data) {switch(this) {
+    case GameFileType.LEVEL: return Uint8List.fromList(lzma.encode(data));
+    default: return data;
+  }}
+}
+var gameFileTypeGroup = FileChooser.FileTypeFilterGroup(label: "DRONE data file", fileExtensions: GameFileType.values.expand((e) => e.fileTypeGroup.fileExtensions).toList());
+GameFileType gameFileTypeFromExtension(String value){
+  if (value.startsWith("\.")) value = value.substring(1);
+  return GameFileType.values.firstWhere((e)=> e.toString().split('.')[1].toUpperCase() == value.toUpperCase());
+}
+
 enum ImgFormat {
   JPEG, PNG, GIF, BMP, WEBP
 }
@@ -80,20 +142,23 @@ extension on ImgFormat {
   FileChooser.FileTypeFilterGroup get fileTypeGroup {
     return (this != null) ? fileTypeGroups[this] : FileChooser.FileTypeFilterGroup(label: "Unknown", fileExtensions: ["*"]);
   }
-  bool checkHeaderSignature(Uint8List fileData) {
+  bool checkHeaderSignature(Uint8List fileData, [int index = 0]) {
     var signature = this.signature;
-    if (this == null || fileData.length < signature.length) return false;
-    for(var i=0; i< signature.length; i++) if (fileData[i] != signature[i]) return false;
+    if (this == null || (fileData.length-index) < signature.length) return false;
+    for(var i=0; i< signature.length; i++) if (fileData[index+i] != signature[i]) return false;
     return true;
   }
 }
 extension _Int8ListImageFileData on Uint8List {
-  ImgFormat get imageFormat {
+  ImgFormat imageFormatAtIndex(int index) {
     if (this == null) return null;
     for (var format in ImgFormat.values) {
-      if (format.checkHeaderSignature(this)) return format;
+      if (format.checkHeaderSignature(this, index)) return format;
     }
     return null;
+  }
+  ImgFormat get imageFormat {
+    return this.imageFormatAtIndex(0);
   }
 }
 
@@ -102,6 +167,7 @@ class _MyHomePageState extends State<MyHomePage> {
     Image.asset("assets/thumbnail_missing.png");
   }
 
+  GameFileType gameFileType;
   bool newThumbnailCorrect = false;
   Function() _saveDrone;
   Function() _exportThumbnail;
@@ -150,17 +216,18 @@ class _MyHomePageState extends State<MyHomePage> {
                     DIRECTORY_C_64.existsSync() ? DIRECTORY_C_64.path :
                     DIRECTORY_D.existsSync() ? DIRECTORY_D.path :
                     DIRECTORY_D_64.existsSync() ? DIRECTORY_D_64.path : null;
-    var droneFile = File((await FileChooser.showOpenPanel(initialDirectory: gameDir, allowedFileTypes: [FileChooser.FileTypeFilterGroup(label: "DRONE file", fileExtensions: ["drone"])], allowsMultipleSelection: false)).paths.first);
+    var droneFile = File((await FileChooser.showOpenPanel(initialDirectory: gameDir, allowedFileTypes: [gameFileTypeGroup], allowsMultipleSelection: false)).paths.first);
+    gameFileType = gameFileTypeFromExtension(Path.extension(droneFile.path));
     fileName = Path.basenameWithoutExtension(droneFile.path);
     fileNameFull = Path.basename(droneFile.path);
     WindowSize.setWindowTitle(fileName);
-    var bytes = droneFile.readAsBytesSync();
+    var bytes = gameFileType.decode(droneFile.readAsBytesSync());
     try {
-      var jpegStart = 8;
-      var jpegEnd = Int8List.fromList([bytes[7], bytes[6], bytes[5], bytes[4]]).buffer.asByteData().getInt32(0) + 8;
-      thumbnailBytes = Uint8List.fromList(bytes.getRange(jpegStart, jpegEnd).toList());
-      droneFileStart = Uint8List.fromList(bytes.getRange(0, jpegStart).toList());
-      droneFileTrail = Uint8List.fromList(bytes.sublist(jpegEnd));
+      var thumbnail = gameFileType.getEmbeddedThumbnail(bytes);
+      //EmbeddedThumbnail.fromDrone(bytes);
+      thumbnailBytes = Uint8List.fromList(bytes.getRange(thumbnail.index, thumbnail.endIndex).toList());
+      droneFileStart = Uint8List.fromList(bytes.getRange(0, thumbnail.index).toList());
+      droneFileTrail = Uint8List.fromList(bytes.sublist(thumbnail.endIndex));
       droneThumbnailSet(Image.memory(thumbnailBytes));
       droneThumbnail.image.resolve(ImageConfiguration.empty).addListener(ImageStreamListener((ImageInfo info, bool synchronousCall) {
         thumbnailLoaded();
@@ -200,14 +267,14 @@ class _MyHomePageState extends State<MyHomePage> {
     if (!saveResult.canceled) {
       var droneFile = File(saveResult.paths.first);
       var newSizeBytes = Int32List.fromList([newThumbnailBytes.length]).buffer.asInt8List();
-      droneFileStart[4] = (newSizeBytes.length > 0) ? newSizeBytes.first : 0;
-      droneFileStart[5] = (newSizeBytes.length > 1) ? newSizeBytes[1] : 0;
-      droneFileStart[6] = (newSizeBytes.length > 2) ? newSizeBytes[2] : 0;
-      droneFileStart[7] = (newSizeBytes.length > 3) ? newSizeBytes[3] : 0;
+      var startSize = droneFileStart.length;
+      droneFileStart[startSize-4] = (newSizeBytes.length > 0) ? newSizeBytes.first : 0;
+      droneFileStart[startSize-3] = (newSizeBytes.length > 1) ? newSizeBytes[1] : 0;
+      droneFileStart[startSize-2] = (newSizeBytes.length > 2) ? newSizeBytes[2] : 0;
+      droneFileStart[startSize-1] = (newSizeBytes.length > 3) ? newSizeBytes[3] : 0;
+      var bytes = Uint8List.fromList([droneFileStart, newThumbnailBytes, droneFileTrail].expand((b) => b).toList());
       droneFile.createSync();
-      droneFile.writeAsBytesSync(droneFileStart);
-      droneFile.writeAsBytesSync(newThumbnailBytes, mode: FileMode.append);
-      droneFile.writeAsBytes(droneFileTrail, mode: FileMode.append);
+      droneFile.writeAsBytes(gameFileType.encode(bytes), mode: FileMode.append);
     }
   }
 
@@ -248,7 +315,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
                           ListTile(
-                            title: Text("Drone file"),
+                            title: Text("Drone or level"),
                             subtitle: Text(fileName),
                           ),
                         ],
@@ -264,7 +331,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       const SizedBox(width: 8),
                       TextButton(
-                        child: const Text('Select drone'),
+                        child: const Text('Select file'),
                         onPressed: _loadDrone,
                       ),
                       const SizedBox(width: 8),
