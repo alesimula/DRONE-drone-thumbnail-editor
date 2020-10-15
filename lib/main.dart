@@ -56,22 +56,25 @@ class EmbeddedThumbnail {
 
   EmbeddedThumbnail._(this.format, this.index, this.size) : endIndex = index + size;
 
+  static EmbeddedThumbnail _getAt(Uint8List data, int index) {
+    index = max(index, 4);
+    var format = data.imageFormatAtIndex(index);
+    int size = (format != null) ? Int8List.fromList([data[index-1], data[index-2], data[index-3], data[index-4]]).buffer.asByteData().getInt32(0) : -1;
+    return (size >= 0 && size <= data.length - index) ? EmbeddedThumbnail._(format, index, size) : null;
+  }
+
   static EmbeddedThumbnail fromLevel(Uint8List data) {
     int startIndex;
     if (data.length <= 12 || (startIndex = data[4].toInt() + 12) >= data.length || startIndex < 12) return null;
-    EmbeddedThumbnail._(null, 0, 0);
     for (int index = startIndex; index < min(MAX_SCAN_SIZE, data.length); index++) {
-      var format = data.imageFormatAtIndex(index);
-      int size = (format != null) ? Int8List.fromList([data[index-1], data[index-2], data[index-3], data[index-4]]).buffer.asByteData().getInt32(0) : -1;
-      if (size >= 0 && size <= data.length - index) return EmbeddedThumbnail._(format, index, size);
+      var thumbnail = _getAt(data, index);
+      if (thumbnail != null) return thumbnail;
     }
     return null;
   }
   static EmbeddedThumbnail fromDrone(Uint8List data) {
     if (data.length < 8) return null;
-    var format = data.imageFormatAtIndex(8);
-    var size = Int8List.fromList([data[7], data[6], data[5], data[4]]).buffer.asByteData().getInt32(0);
-    return (format != null && size <= data.length - 8) ? EmbeddedThumbnail._(format, 8, size): null;
+    return _getAt(data, 8);
   }
 }
 
@@ -224,7 +227,6 @@ class _MyHomePageState extends State<MyHomePage> {
     var bytes = gameFileType.decode(droneFile.readAsBytesSync());
     try {
       var thumbnail = gameFileType.getEmbeddedThumbnail(bytes);
-      //EmbeddedThumbnail.fromDrone(bytes);
       thumbnailBytes = Uint8List.fromList(bytes.getRange(thumbnail.index, thumbnail.endIndex).toList());
       droneFileStart = Uint8List.fromList(bytes.getRange(0, thumbnail.index).toList());
       droneFileTrail = Uint8List.fromList(bytes.sublist(thumbnail.endIndex));
